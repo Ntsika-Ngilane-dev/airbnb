@@ -3,6 +3,7 @@ import crypto from 'node:crypto'
 import cors from 'cors'
 import express from 'express'
 import { MongoClient, ObjectId } from 'mongodb'
+import { SignJWT, decodeJwt, importPKCS8 } from 'jose'
 
 const app = express()
 const port = Number(process.env.PORT || 4000)
@@ -11,6 +12,7 @@ const sessionSecret = process.env.SESSION_SECRET || 'local-development-session-s
 const adminEmail = (process.env.ADMIN_EMAIL || 'admin@workngilane.com').toLowerCase()
 const adminPassword = process.env.ADMIN_PASSWORD || (process.env.NODE_ENV !== 'production' ? 'workngilane' : null)
 const localUsers = new Map()
+const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:5174'
 const fallbackStays = [
   ['Over the clouds in the Dolomites', 'Cortina d’Ampezzo, Italy', 382, 'https://images.unsplash.com/photo-1601918774946-25832a4be0d6?auto=format&fit=crop&w=900&q=85', 'Amazing views'],
   ['Sunlit villa with a private pool', 'Paros, Greece', 247, 'https://images.unsplash.com/photo-1530789253388-582c481c54b0?auto=format&fit=crop&w=900&q=85', 'Amazing pools'],
@@ -93,9 +95,11 @@ function readSession(req) {
 }
 function requireAdmin(req, res, next) { const session = readSession(req); if (!session?.isAdmin) return res.status(401).json({ error: 'Admin authentication required' }); req.session = session; next() }
 function setSession(res, session) { res.setHeader('Set-Cookie', `airbnb_session=${signSession(session)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400`) }
+function setOAuthState(res, state) { res.setHeader('Set-Cookie', `oauth_state=${state}; HttpOnly; SameSite=Lax; Path=/; Max-Age=600`) }
+function getCookie(req, name) { return req.headers.cookie?.split(';').map((item) => item.trim()).find((item) => item.startsWith(`${name}=`))?.split('=')[1] }
 
 app.get('/api/auth/providers', (_req, res) => res.json({ google: Boolean(process.env.GOOGLE_AUTH_URL), apple: Boolean(process.env.APPLE_AUTH_URL) }))
-app.get('/api/auth/config', (_req, res) => res.json({ googleClientId: process.env.GOOGLE_CLIENT_ID || null }))
+app.get('/api/auth/config', (_req, res) => res.json({ googleClientId: process.env.GOOGLE_CLIENT_ID || null, appleConfigured: Boolean(process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID && process.env.APPLE_KEY_ID && process.env.APPLE_PRIVATE_KEY) }))
 app.get('/api/auth/me', (req, res) => { const session = readSession(req); res.json({ authenticated: Boolean(session), user: session ? { email: session.email, name: session.name, isAdmin: session.isAdmin } : null }) })
 app.post('/api/auth/login', (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase()
@@ -136,7 +140,26 @@ app.post('/api/auth/google/token', async (req, res) => {
 })
 app.post('/api/auth/logout', (_req, res) => { res.setHeader('Set-Cookie', 'airbnb_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'); res.json({ ok: true }) })
 app.get('/api/auth/google', (req, res) => process.env.GOOGLE_AUTH_URL ? res.redirect(process.env.GOOGLE_AUTH_URL) : res.status(501).json({ error: 'Google OAuth is not configured. Set GOOGLE_AUTH_URL in .env.' }))
-app.get('/api/auth/apple', (req, res) => process.env.APPLE_AUTH_URL ? res.redirect(process.env.APPLE_AUTH_URL) : res.status(501).json({ error: 'Apple OAuth is not configured. Set APPLE_AUTH_URL in .env.' }))
+app.get('/api/auth/apple', (req, res) => {
+  if (!process.env.APPLE_CLIENT_ID) return res.status(501).json({ error: 'Apple login is not configured. Set Apple OAuth variables in .env.' })
+  const state = crypto.randomBytes(24).toString('hex'); setOAuthState(res, state)
+  const params = new URLSearchParams({ response_type: 'code', response_mode: 'form_post', client_id: process.env.APPLE_CLIENT_ID, redirect_uri: `${appBaseUrl}/api/auth/apple/callback`, scope: 'name email', state })
+  res.redirect(`https://appleid.apple.com/auth/authorize?${params}`)
+})
+app.post('/api/auth/apple/callback', async (req, res) => {
+  const state = String(req.body.state || ''); const storedState = getCookie(req, 'oauth_state')
+  if (!state || state !== storedState) return res.status(401).send('Apple login state validation failed')
+  if (!process.env.APPLE_CLIENT_ID || !process.env.APPLE_TEAM_ID || !process.env.APPLE_KEY_ID || !process.env.APPLE_PRIVATE_KEY) return res.status(503).send('Apple login is not configured')
+  try {
+    const privateKey = await importPKCS8(process.env.APPLE_PRIVATE_KEY.replace(/\\n/g, '\n'), 'ES256')
+    const clientSecret = await new SignJWT({}).setProtectedHeader({ alg: 'ES256', kid: process.env.APPLE_KEY_ID, typ: 'JWT' }).setIssuer(process.env.APPLE_TEAM_ID).setAudience('https://appleid.apple.com').setSubject(process.env.APPLE_CLIENT_ID).setIssuedAt().setExpirationTime('180d').sign(privateKey)
+    const tokenResponse = await fetch('https://appleid.apple.com/auth/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: process.env.APPLE_CLIENT_ID, client_secret: clientSecret, code: String(req.body.code || ''), grant_type: 'authorization_code', redirect_uri: `${appBaseUrl}/api/auth/apple/callback` }) })
+    const token = await tokenResponse.json(); if (!tokenResponse.ok || !token.id_token) return res.status(401).send('Apple token exchange failed')
+    const claims = decodeJwt(token.id_token); const email = String(claims.email || '').toLowerCase(); if (!email) return res.status(401).send('Apple account email unavailable')
+    let user = await findUser(email); if (!user) user = await saveUser({ email, name: email.split('@')[0], isAdmin: email === adminEmail, provider: 'apple', createdAt: new Date() })
+    setSession(res, { ...publicUser(user), expiresAt: Date.now() + 86400000 }); res.redirect(appBaseUrl)
+  } catch { res.status(502).send('Apple login verification failed') }
+})
 app.get('/api/admin/overview', requireAdmin, async (_req, res) => {
   const catalog = useCollection() ? await staysCollection.find({}, { projection: { location: 1, category: 1, rating: 1, pricePerNight: 1 } }).toArray() : createStays()
   const categoryCounts = new Map(); const locationCounts = new Map(); const ratingCounts = new Map()

@@ -23,7 +23,9 @@ For local development only, the login works without `.env` using email `admin@wo
 
 The account menu opens the login page. Successful admin login opens the protected dashboard at `/api/admin/overview`, which reports catalog counts and ownership metadata. Sessions use signed, HTTP-only cookies and expire after 24 hours.
 
-Google login uses the supported Google Identity Services library rather than deprecated `gapi.auth2`. Set `GOOGLE_CLIENT_ID` to your Google OAuth web client ID and add `http://localhost:5173` to its authorized JavaScript origins. The server verifies the Google ID token before creating a session. The verified email must equal `ADMIN_EMAIL` to receive admin access. Apple uses `APPLE_AUTH_URL` until its provider callback is configured.
+Google login uses the supported Google Identity Services library rather than deprecated `gapi.auth2`. `GOOGLE_CLIENT_ID` is configured locally from the supplied public client ID. Add `http://localhost:5174` and `http://localhost:5173` to its authorized JavaScript origins. The server verifies the Google ID token before creating a session. The verified email must equal `ADMIN_EMAIL` to receive admin access. Never put the Google client secret in frontend code or commit it.
+
+Apple login uses the real Sign in with Apple authorization-code flow. Configure `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, and `APPLE_PRIVATE_KEY`, and register `${APP_BASE_URL}/api/auth/apple/callback` as the Apple return URL. The server validates OAuth state, exchanges the code, creates the user in MongoDB, and assigns admin access only when the Apple email matches `ADMIN_EMAIL`.
 
 The app also runs without MongoDB using the same seed records in memory, which keeps the UI usable for local design work.
 
