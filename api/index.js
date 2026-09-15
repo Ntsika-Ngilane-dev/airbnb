@@ -8,6 +8,5 @@ export default async function handler(req, res) {
     app.locals.databaseError = error.message
     return null
   })
-  await databasePromise
   return app(req, res)
 }
