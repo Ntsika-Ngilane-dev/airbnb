@@ -2,6 +2,7 @@ import 'dotenv/config'
 import crypto from 'node:crypto'
 import cors from 'cors'
 import express from 'express'
+import { OAuth2Client } from 'google-auth-library'
 import { MongoClient, ObjectId, ServerApiVersion } from 'mongodb'
 import { SignJWT, decodeJwt, importPKCS8 } from 'jose'
 
@@ -17,6 +18,7 @@ const client = process.env.MONGODB_URI
     serverSelectionTimeoutMS: 15000,
   })
   : null
+const googleClient = process.env.GOOGLE_CLIENT_ID ? new OAuth2Client(process.env.GOOGLE_CLIENT_ID) : null
 const sessionSecret = process.env.SESSION_SECRET || 'local-development-session-secret'
 const adminEmail = (process.env.ADMIN_EMAIL || 'admin@workngilane.com').toLowerCase()
 const adminPassword = process.env.ADMIN_PASSWORD || (process.env.NODE_ENV !== 'production' ? 'workngilane' : null)
@@ -130,7 +132,7 @@ function setSession(res, session) { res.setHeader('Set-Cookie', `airbnb_session=
 function setOAuthState(res, state) { res.setHeader('Set-Cookie', `oauth_state=${state}; HttpOnly; SameSite=Lax; Path=/; Max-Age=600`) }
 function getCookie(req, name) { return req.headers.cookie?.split(';').map((item) => item.trim()).find((item) => item.startsWith(`${name}=`))?.split('=')[1] }
 
-app.get('/api/auth/providers', (_req, res) => res.json({ google: Boolean(process.env.GOOGLE_AUTH_URL), apple: Boolean(process.env.APPLE_AUTH_URL) }))
+app.get('/api/auth/providers', (_req, res) => res.json({ google: Boolean(process.env.GOOGLE_CLIENT_ID), apple: Boolean(process.env.APPLE_CLIENT_ID) }))
 app.get('/api/auth/config', (_req, res) => res.json({ googleClientId: process.env.GOOGLE_CLIENT_ID || null, appleConfigured: Boolean(process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID && process.env.APPLE_KEY_ID && process.env.APPLE_PRIVATE_KEY) }))
 app.get('/api/auth/me', (req, res) => { const session = readSession(req); res.json({ authenticated: Boolean(session), user: session ? { email: session.email, name: session.name, isAdmin: session.isAdmin } : null }) })
 app.post('/api/auth/login', (req, res) => {
@@ -157,18 +159,18 @@ app.post('/api/auth/signup', async (req, res) => {
   res.status(201).json({ user: publicUser(user) })
 })
 app.post('/api/auth/google/token', async (req, res) => {
-  if (!process.env.GOOGLE_CLIENT_ID) return res.status(503).json({ error: 'Google login is not configured. Set GOOGLE_CLIENT_ID in .env.' })
+  if (!googleClient) return res.status(503).json({ error: 'Google login is not configured. Set GOOGLE_CLIENT_ID in .env.' })
   const credential = String(req.body.credential || '')
   if (!credential) return res.status(400).json({ error: 'Google credential is required' })
   try {
-    const tokenResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`)
-    const token = await tokenResponse.json()
-    if (!tokenResponse.ok || token.aud !== process.env.GOOGLE_CLIENT_ID || !token.email_verified) return res.status(401).json({ error: 'Invalid Google credential' })
-    const email = String(token.email).toLowerCase()
+    const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: process.env.GOOGLE_CLIENT_ID })
+    const payload = ticket.getPayload()
+    if (!payload?.sub || !payload.email || payload.email_verified !== true) return res.status(401).json({ error: 'Invalid Google credential' })
+    const email = payload.email.toLowerCase()
     const isAdmin = email === adminEmail
-    setSession(res, { email, name: token.name || email, isAdmin, expiresAt: Date.now() + 86400000 })
-    res.json({ user: { email, name: token.name || email, isAdmin } })
-  } catch { res.status(502).json({ error: 'Google verification failed' }) }
+    setSession(res, { email, name: payload.name || email, isAdmin, expiresAt: Date.now() + 86400000 })
+    res.json({ user: { email, name: payload.name || email, isAdmin } })
+  } catch { res.status(401).json({ error: 'Invalid Google credential' }) }
 })
 app.post('/api/auth/logout', (_req, res) => { res.setHeader('Set-Cookie', 'airbnb_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'); res.json({ ok: true }) })
 app.get('/api/auth/google', (req, res) => process.env.GOOGLE_AUTH_URL ? res.redirect(process.env.GOOGLE_AUTH_URL) : res.status(501).json({ error: 'Google OAuth is not configured. Set GOOGLE_AUTH_URL in .env.' }))
@@ -217,7 +219,7 @@ async function connectDatabase() {
   staysCollection = client.db(process.env.MONGODB_DB || 'airbnb_clone').collection('stays')
   usersCollection = client.db(process.env.MONGODB_DB || 'airbnb_clone').collection('users')
   await usersCollection.createIndex({ email: 1 }, { unique: true })
-  if (adminPassword) { const adminHash = hashPassword(adminPassword); await usersCollection.updateOne({ email: adminEmail }, { $setOnInsert: { email: adminEmail, name: 'Workngilane Admin', isAdmin: true, passwordHash: adminHash.hash, salt: adminHash.salt, createdAt: new Date() } }, { upsert: true }) }
+  if (adminPassword) { const adminHash = hashPassword(adminPassword); await usersCollection.updateOne({ email: adminEmail }, { $set: { email: adminEmail, name: 'Workngilane Admin', isAdmin: true, passwordHash: adminHash.hash, salt: adminHash.salt }, $setOnInsert: { createdAt: new Date() } }, { upsert: true }) }
   const stayCount = await staysCollection.countDocuments()
   const expectedStayCount = locations.length * stayCategories.length
   if (stayCount < expectedStayCount) {
@@ -230,7 +232,7 @@ async function connectDatabase() {
 function useCollection() { return staysCollection }
 if (adminPassword) { const adminHash = hashPassword(adminPassword); localUsers.set(adminEmail, { email: adminEmail, name: 'Workngilane Admin', isAdmin: true, passwordHash: adminHash.hash, salt: adminHash.salt, createdAt: new Date() }) }
 
-app.get('/api/health', (_req, res) => res.status(databaseError ? 503 : 200).json({ ok: !databaseError, database: Boolean(useCollection()), error: databaseError, copyright: 'Ntsika Ngilane' }))
+app.get('/api/health', (_req, res) => { const error = databaseError || app.locals.databaseError || null; return res.status(error ? 503 : 200).json({ ok: !error, database: Boolean(useCollection()), error, copyright: 'Ntsika Ngilane' }) })
 app.get('/api/stays', async (req, res) => {
   const locationQuery = String(req.query.location || '').trim()
   const categoryQuery = String(req.query.category || '').trim()
