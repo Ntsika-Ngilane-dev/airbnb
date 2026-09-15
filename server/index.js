@@ -78,7 +78,6 @@ function createStays() {
     'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=900&q=85'
   ]
 
-  let index = 0
   for (let countryIndex = 0; countryIndex < locations.length; countryIndex += 1) {
     const country = locations[countryIndex]
     for (let categoryIndex = 0; categoryIndex < stayCategories.length; categoryIndex += 1) {
@@ -100,8 +99,6 @@ function createStays() {
         copyright: '© 2024 Airbnb, Inc.',
       })
 
-      index += 1
-      if (index >= 1600) return catalog
     }
   }
 
@@ -222,7 +219,8 @@ async function connectDatabase() {
   await usersCollection.createIndex({ email: 1 }, { unique: true })
   if (adminPassword) { const adminHash = hashPassword(adminPassword); await usersCollection.updateOne({ email: adminEmail }, { $setOnInsert: { email: adminEmail, name: 'Workngilane Admin', isAdmin: true, passwordHash: adminHash.hash, salt: adminHash.salt, createdAt: new Date() } }, { upsert: true }) }
   const stayCount = await staysCollection.countDocuments()
-  if (stayCount < 1200) {
+  const expectedStayCount = locations.length * stayCategories.length
+  if (stayCount < expectedStayCount) {
     await staysCollection.deleteMany({})
     await staysCollection.insertMany(createStays())
   }
