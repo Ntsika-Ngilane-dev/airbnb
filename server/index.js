@@ -34,13 +34,7 @@ const fallbackStays = [
   ['Sydney Opera House harbour stay', 'Sydney Opera House, Australia', 247, 'https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d1?auto=format&fit=crop&w=900&q=85', 'Icons'],
 ]
 const locations = [
-  'Cape Town, South Africa', 'Johannesburg, South Africa', 'Durban, South Africa', 'Marrakesh, Morocco', 'Cairo, Egypt', 'Nairobi, Kenya', 'Lagos, Nigeria', 'Accra, Ghana', 'Zanzibar, Tanzania', 'Victoria Falls, Zimbabwe',
-  'Lisbon, Portugal', 'Porto, Portugal', 'Madrid, Spain', 'Barcelona, Spain', 'Seville, Spain', 'Paris, France', 'Nice, France', 'Rome, Italy', 'Milan, Italy', 'Venice, Italy', 'Florence, Italy', 'Athens, Greece', 'Santorini, Greece', 'Mykonos, Greece', 'Amsterdam, Netherlands', 'Brussels, Belgium', 'Berlin, Germany', 'Munich, Germany', 'Vienna, Austria', 'Prague, Czechia', 'Budapest, Hungary', 'Dublin, Ireland', 'Edinburgh, United Kingdom', 'London, United Kingdom', 'Reykjavik, Iceland', 'Copenhagen, Denmark', 'Stockholm, Sweden', 'Oslo, Norway', 'Helsinki, Finland', 'Zurich, Switzerland', 'Dubrovnik, Croatia', 'Istanbul, Türkiye', 'Tbilisi, Georgia', 'Moscow, Russia',
-  'New York, United States', 'Los Angeles, United States', 'San Francisco, United States', 'Miami, United States', 'Chicago, United States', 'Las Vegas, United States', 'Seattle, United States', 'Boston, United States', 'New Orleans, United States', 'Austin, United States', 'Nashville, United States', 'Honolulu, United States', 'Toronto, Canada', 'Vancouver, Canada', 'Montreal, Canada', 'Calgary, Canada', 'Mexico City, Mexico', 'Cancún, Mexico', 'Tulum, Mexico', 'Havana, Cuba', 'San José, Costa Rica', 'Panama City, Panama', 'Santo Domingo, Dominican Republic', 'Kingston, Jamaica',
-  'Rio de Janeiro, Brazil', 'São Paulo, Brazil', 'Buenos Aires, Argentina', 'Santiago, Chile', 'Lima, Peru', 'Cusco, Peru', 'Cartagena, Colombia', 'Bogotá, Colombia', 'Quito, Ecuador', 'La Paz, Bolivia', 'Montevideo, Uruguay',
-  'Tokyo, Japan', 'Kyoto, Japan', 'Osaka, Japan', 'Sapporo, Japan', 'Seoul, South Korea', 'Beijing, China', 'Shanghai, China', 'Hong Kong', 'Taipei, Taiwan', 'Bangkok, Thailand', 'Chiang Mai, Thailand', 'Phuket, Thailand', 'Singapore', 'Kuala Lumpur, Malaysia', 'Bali, Indonesia', 'Uluwatu, Indonesia', 'Jakarta, Indonesia', 'Manila, Philippines', 'Palawan, Philippines', 'Hanoi, Vietnam', 'Ho Chi Minh City, Vietnam', 'Siem Reap, Cambodia', 'Kathmandu, Nepal', 'New Delhi, India', 'Mumbai, India', 'Goa, India', 'Malé, Maldives', 'Dubai, United Arab Emirates', 'Abu Dhabi, United Arab Emirates', 'Doha, Qatar', 'Muscat, Oman', 'Tel Aviv, Israel', 'Amman, Jordan', 'Riyadh, Saudi Arabia',
-  'Sydney, Australia', 'Sydney Opera House, Australia', 'Melbourne, Australia', 'Brisbane, Australia', 'Perth, Australia', 'Gold Coast, Australia', 'Auckland, New Zealand', 'Queenstown, New Zealand', 'Wellington, New Zealand', 'Fiji', 'Seychelles', 'Mauritius',
-  'Eiffel Tower, Paris, France', 'Colosseum, Rome, Italy', 'Petra, Jordan', 'Taj Mahal, Agra, India', 'Machu Picchu, Peru', 'Great Wall of China, Beijing, China', 'Christ the Redeemer, Rio de Janeiro, Brazil', 'Table Mountain, Cape Town, South Africa', 'Burj Khalifa, Dubai, United Arab Emirates', 'Acropolis, Athens, Greece', 'Sagrada Família, Barcelona, Spain',
+  'Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Antigua and Barbuda', 'Argentina', 'Armenia', 'Australia', 'Austria', 'Azerbaijan', 'Bahamas', 'Bahrain', 'Bangladesh', 'Barbados', 'Belarus', 'Belgium', 'Belize', 'Benin', 'Bhutan', 'Bolivia', 'Bosnia and Herzegovina', 'Botswana', 'Brazil', 'Brunei', 'Bulgaria', 'Burkina Faso', 'Burundi', 'Cabo Verde', 'Cambodia', 'Cameroon', 'Canada', 'Central African Republic', 'Chad', 'Chile', 'China', 'Colombia', 'Comoros', 'Congo', 'Costa Rica', 'Croatia', 'Cuba', 'Cyprus', 'Czech Republic', 'Democratic Republic of the Congo', 'Denmark', 'Djibouti', 'Dominica', 'Dominican Republic', 'Ecuador', 'Egypt', 'El Salvador', 'Equatorial Guinea', 'Eritrea', 'Estonia', 'Eswatini', 'Ethiopia', 'Fiji', 'Finland', 'France', 'Gabon', 'Gambia', 'Georgia', 'Germany', 'Ghana', 'Greece', 'Grenada', 'Guatemala', 'Guinea', 'Guinea-Bissau', 'Guyana', 'Haiti', 'Honduras', 'Hungary', 'Iceland', 'India', 'Indonesia', 'Iran', 'Iraq', 'Ireland', 'Israel', 'Italy', 'Jamaica', 'Japan', 'Jordan', 'Kazakhstan', 'Kenya', 'Kiribati', 'Kuwait', 'Kyrgyzstan', 'Laos', 'Latvia', 'Lebanon', 'Lesotho', 'Liberia', 'Libya', 'Liechtenstein', 'Lithuania', 'Luxembourg', 'Madagascar', 'Malawi', 'Malaysia', 'Maldives', 'Mali', 'Malta', 'Marshall Islands', 'Mauritania', 'Mauritius', 'Mexico', 'Micronesia', 'Moldova', 'Monaco', 'Mongolia', 'Montenegro', 'Morocco', 'Mozambique', 'Myanmar', 'Namibia', 'Nauru', 'Nepal', 'Netherlands', 'New Zealand', 'Nicaragua', 'Niger', 'Nigeria', 'North Korea', 'North Macedonia', 'Norway', 'Oman', 'Pakistan', 'Palau', 'Panama', 'Papua New Guinea', 'Paraguay', 'Peru', 'Philippines', 'Poland', 'Portugal', 'Qatar', 'Romania', 'Russia', 'Rwanda', 'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Samoa', 'San Marino', 'Sao Tome and Principe', 'Saudi Arabia', 'Senegal', 'Serbia', 'Seychelles', 'Sierra Leone', 'Singapore', 'Slovakia', 'Slovenia', 'Solomon Islands', 'Somalia', 'South Africa', 'South Korea', 'South Sudan', 'Spain', 'Sri Lanka', 'Sudan', 'Suriname', 'Sweden', 'Switzerland', 'Syria', 'Taiwan', 'Tajikistan', 'Tanzania', 'Thailand', 'Timor-Leste', 'Togo', 'Tonga', 'Trinidad and Tobago', 'Tunisia', 'Türkiye', 'Turkmenistan', 'Tuvalu', 'Uganda', 'Ukraine', 'United Arab Emirates', 'United Kingdom', 'United States', 'Uruguay', 'Uzbekistan', 'Vanuatu', 'Vatican City', 'Venezuela', 'Vietnam', 'Yemen', 'Zambia', 'Zimbabwe'
 ]
 const destinationImages = [
   'https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=240&q=80',
@@ -58,11 +52,14 @@ function createStays() {
   const catalog = []
   for (let index = 0; index < 1000; index += 1) {
     const base = fallbackStays[index % fallbackStays.length]
-    const location = locations[index % locations.length]
+    const country = locations[index % locations.length]
     const category = index < fallbackStays.length ? base[4] : stayCategories[index % stayCategories.length]
+    const city = `${country.split(' ')[0]}${(index % 17) + 1}`
+    const location = `${city}, ${country}`
     catalog.push({
-      title: index < fallbackStays.length ? base[0] : `${category} home in ${location.split(',')[0]} ${Math.floor(index / locations.length) + 1}`,
+      title: index < fallbackStays.length ? base[0] : `${category} home in ${city} ${Math.floor(index / locations.length) + 1}`,
       location,
+      country,
       pricePerNight: 90 + ((index * 37) % 460),
       image: base[3],
       category,
@@ -196,10 +193,24 @@ if (adminPassword) { const adminHash = hashPassword(adminPassword); localUsers.s
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, database: Boolean(useCollection()), copyright: 'Ntsika Ngilane' }))
 app.get('/api/stays', async (req, res) => {
-  const { location = '', category = '' } = req.query
+  const locationQuery = String(req.query.location || '').trim()
+  const categoryQuery = String(req.query.category || '').trim()
   const collection = useCollection()
   const limit = Math.min(Number(req.query.limit) || 60, 1000)
-  const source = collection ? await collection.find({ ...(category ? { category } : {}), ...(location ? { location: { $regex: location, $options: 'i' } } : {}) }).limit(limit).toArray() : createStays().filter((stay) => (!category || stay.category === category) && (!location || stay.location.toLowerCase().includes(location.toLowerCase()))).slice(0, limit)
+
+  const filters = {}
+  if (categoryQuery) filters.category = categoryQuery
+  if (locationQuery) {
+    filters.$or = [
+      { location: { $regex: locationQuery, $options: 'i' } },
+      { country: { $regex: locationQuery, $options: 'i' } }
+    ]
+  }
+
+  const source = collection
+    ? await collection.find(filters).limit(limit).toArray()
+    : createStays().filter((stay) => (!categoryQuery || stay.category === categoryQuery) && (!locationQuery || stay.location.toLowerCase().includes(locationQuery.toLowerCase()) || stay.country.toLowerCase().includes(locationQuery.toLowerCase()))).slice(0, limit)
+
   res.json(source)
 })
 app.get('/api/stays/:id', async (req, res) => {
@@ -216,7 +227,8 @@ app.get('/api/locations', async (req, res) => {
     const data = await response.json()
     return res.json((data.predictions || []).map((item, index) => ({ label: item.description, placeId: item.place_id, image: destinationImages[index % destinationImages.length] })))
   }
-  res.json(locations.filter((item) => item.toLowerCase().includes(query.toLowerCase())).slice(0, 12).map((label, index) => ({ label, image: destinationImages[index % destinationImages.length] })))
+  const filtered = query ? locations.filter((item) => item.toLowerCase().includes(query.toLowerCase())).slice(0, 12) : locations.slice(0, 12)
+  res.json(filtered.map((label, index) => ({ label, image: destinationImages[index % destinationImages.length] })))
 })
 app.get('/api/locations/all', (_req, res) => res.json(locations.map((label, index) => ({ label, image: destinationImages[index % destinationImages.length] }))))
 app.post('/api/quote', (req, res) => {
