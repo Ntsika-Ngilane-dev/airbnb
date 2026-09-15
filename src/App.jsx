@@ -27,7 +27,7 @@ function ExperiencePage({ online = false, onBack }) {
 function LoginPage({ onLogin, onBack }) {
   const [mode, setMode] = useState('login')
   const [name, setName] = useState('')
-  const [email, setEmail] = useState('admin@workngilane.com')
+  const [email, setEmail] = useState('workngilane@gmail.com')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
