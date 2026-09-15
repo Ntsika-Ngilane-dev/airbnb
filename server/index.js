@@ -8,16 +8,22 @@ import { SignJWT, decodeJwt, importPKCS8 } from 'jose'
 
 const app = express()
 const port = Number(process.env.PORT || 4000)
-const client = process.env.MONGODB_URI
-  ? new MongoClient(process.env.MONGODB_URI, {
-    serverApi: {
-      version: ServerApiVersion.v1,
-      strict: true,
-      deprecationErrors: true,
-    },
-    serverSelectionTimeoutMS: 15000,
-  })
-  : null
+let databaseError = null
+let client = null
+try {
+  if (process.env.MONGODB_URI) {
+    client = new MongoClient(process.env.MONGODB_URI, {
+      serverApi: {
+        version: ServerApiVersion.v1,
+        strict: true,
+        deprecationErrors: true,
+      },
+      serverSelectionTimeoutMS: 15000,
+    })
+  }
+} catch (error) {
+  databaseError = error.message
+}
 const googleClient = process.env.GOOGLE_CLIENT_ID ? new OAuth2Client(process.env.GOOGLE_CLIENT_ID) : null
 const sessionSecret = process.env.SESSION_SECRET || 'local-development-session-secret'
 const adminEmail = (process.env.ADMIN_EMAIL || 'admin@workngilane.com').toLowerCase()
@@ -206,7 +212,6 @@ app.get('/api/admin/overview', requireAdmin, async (_req, res) => {
 
 let staysCollection
 let usersCollection
-let databaseError = null
 function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) { return { salt, hash: crypto.scryptSync(password, salt, 64).toString('hex') } }
 function passwordMatches(password, record) { const candidate = crypto.scryptSync(password, record.salt, 64); return crypto.timingSafeEqual(candidate, Buffer.from(record.passwordHash, 'hex')) }
 function publicUser(user) { return { email: user.email, name: user.name, isAdmin: user.isAdmin } }
