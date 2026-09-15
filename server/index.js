@@ -109,6 +109,8 @@ function createStays() {
 }
 function nightsBetween(checkIn, checkOut) { const start = new Date(checkIn); const end = new Date(checkOut); return Number.isNaN(start.valueOf()) || Number.isNaN(end.valueOf()) ? 0 : Math.max(0, Math.ceil((end - start) / 86400000)) }
 
+export { app, connectDatabase }
+
 app.use(cors())
 app.use(express.json())
 
@@ -276,12 +278,14 @@ app.post('/api/quote', (req, res) => {
   const subtotal = nights * nightly
   res.json({ nights, nightly, subtotal, cleaningFee: Math.round(subtotal * 0.08), serviceFee: Math.round(subtotal * 0.12), total: Math.round(subtotal * 1.2 + subtotal * 0.08) })
 })
-app.listen(port, async () => {
-  try {
-    await connectDatabase()
-  } catch (error) {
-    databaseError = error.message
-    console.error(`MongoDB unavailable; using local seed data: ${error.message}`)
-  }
-  console.log(`API running at http://localhost:${port}`)
-})
+if (!process.env.VERCEL) {
+  app.listen(port, async () => {
+    try {
+      await connectDatabase()
+    } catch (error) {
+      databaseError = error.message
+      console.error(`MongoDB unavailable; using local seed data: ${error.message}`)
+    }
+    console.log(`API running at http://localhost:${port}`)
+  })
+}
