@@ -2,12 +2,21 @@ import 'dotenv/config'
 import crypto from 'node:crypto'
 import cors from 'cors'
 import express from 'express'
-import { MongoClient, ObjectId } from 'mongodb'
+import { MongoClient, ObjectId, ServerApiVersion } from 'mongodb'
 import { SignJWT, decodeJwt, importPKCS8 } from 'jose'
 
 const app = express()
 const port = Number(process.env.PORT || 4000)
-const client = process.env.MONGODB_URI ? new MongoClient(process.env.MONGODB_URI) : null
+const client = process.env.MONGODB_URI
+  ? new MongoClient(process.env.MONGODB_URI, {
+    serverApi: {
+      version: ServerApiVersion.v1,
+      strict: true,
+      deprecationErrors: true,
+    },
+    serverSelectionTimeoutMS: 15000,
+  })
+  : null
 const sessionSecret = process.env.SESSION_SECRET || 'local-development-session-secret'
 const adminEmail = (process.env.ADMIN_EMAIL || 'admin@workngilane.com').toLowerCase()
 const adminPassword = process.env.ADMIN_PASSWORD || (process.env.NODE_ENV !== 'production' ? 'workngilane' : null)
@@ -50,25 +59,52 @@ const stayCategories = ['Amazing views', 'Icons', 'Amazing pools', 'Beach', 'Cou
 
 function createStays() {
   const catalog = []
-  for (let index = 0; index < 1000; index += 1) {
-    const base = fallbackStays[index % fallbackStays.length]
-    const country = locations[index % locations.length]
-    const category = index < fallbackStays.length ? base[4] : stayCategories[index % stayCategories.length]
-    const city = `${country.split(' ')[0]}${(index % 17) + 1}`
-    const location = `${city}, ${country}`
-    catalog.push({
-      title: index < fallbackStays.length ? base[0] : `${category} home in ${city} ${Math.floor(index / locations.length) + 1}`,
-      location,
-      country,
-      pricePerNight: 90 + ((index * 37) % 460),
-      image: base[3],
-      category,
-      rating: Number((4.51 + ((index * 0.07) % 0.49)).toFixed(2)),
-      reviewCount: 23 + ((index * 41) % 980),
-      guestFavorite: index % 3 === 0,
-      copyright: '© 2024 Airbnb, Inc.',
-    })
+  const imagePool = [
+    'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1502672023488-70e25813eb80?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1448630360428-65456885c650?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1460317442991-0ec209397118?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=85',
+    'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=900&q=85'
+  ]
+
+  let index = 0
+  for (let countryIndex = 0; countryIndex < locations.length; countryIndex += 1) {
+    const country = locations[countryIndex]
+    for (let categoryIndex = 0; categoryIndex < stayCategories.length; categoryIndex += 1) {
+      const category = stayCategories[categoryIndex]
+      const city = `${country.split(' ')[0].replace(/[^a-zA-Z]/g, '') || 'City'} ${countryIndex + 1}`
+      const location = `${city}, ${country}`
+      const image = imagePool[(countryIndex + categoryIndex) % imagePool.length]
+
+      catalog.push({
+        title: `${category} home in ${city}`,
+        location,
+        country,
+        pricePerNight: 90 + ((countryIndex * 47) + categoryIndex * 29) % 460,
+        image,
+        category,
+        rating: Number((4.55 + ((countryIndex * 0.11 + categoryIndex * 0.07) % 0.44)).toFixed(2)),
+        reviewCount: 40 + ((countryIndex * 53 + categoryIndex * 17) % 980),
+        guestFavorite: (countryIndex + categoryIndex) % 3 === 0,
+        copyright: '© 2024 Airbnb, Inc.',
+      })
+
+      index += 1
+      if (index >= 1600) return catalog
+    }
   }
+
   return catalog
 }
 function nightsBetween(checkIn, checkOut) { const start = new Date(checkIn); const end = new Date(checkOut); return Number.isNaN(start.valueOf()) || Number.isNaN(end.valueOf()) ? 0 : Math.max(0, Math.ceil((end - start) / 86400000)) }
@@ -169,29 +205,32 @@ app.get('/api/admin/overview', requireAdmin, async (_req, res) => {
 
 let staysCollection
 let usersCollection
+let databaseError = null
 function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) { return { salt, hash: crypto.scryptSync(password, salt, 64).toString('hex') } }
 function passwordMatches(password, record) { const candidate = crypto.scryptSync(password, record.salt, 64); return crypto.timingSafeEqual(candidate, Buffer.from(record.passwordHash, 'hex')) }
 function publicUser(user) { return { email: user.email, name: user.name, isAdmin: user.isAdmin } }
 async function findUser(email) { return usersCollection ? usersCollection.findOne({ email }) : localUsers.get(email) }
 async function saveUser(user) { if (usersCollection) await usersCollection.updateOne({ email: user.email }, { $set: user }, { upsert: true }); else localUsers.set(user.email, user); return user }
 async function connectDatabase() {
-  if (!client) return
+  if (!client) throw new Error('MONGODB_URI is missing from .env')
   await client.connect()
+  await client.db('admin').command({ ping: 1 })
   staysCollection = client.db(process.env.MONGODB_DB || 'airbnb_clone').collection('stays')
   usersCollection = client.db(process.env.MONGODB_DB || 'airbnb_clone').collection('users')
   await usersCollection.createIndex({ email: 1 }, { unique: true })
   if (adminPassword) { const adminHash = hashPassword(adminPassword); await usersCollection.updateOne({ email: adminEmail }, { $setOnInsert: { email: adminEmail, name: 'Workngilane Admin', isAdmin: true, passwordHash: adminHash.hash, salt: adminHash.salt, createdAt: new Date() } }, { upsert: true }) }
   const stayCount = await staysCollection.countDocuments()
-  if (stayCount < 1000) {
+  if (stayCount < 1200) {
     await staysCollection.deleteMany({})
     await staysCollection.insertMany(createStays())
   }
+  databaseError = null
   console.log('MongoDB connected and stays seeded')
 }
 function useCollection() { return staysCollection }
 if (adminPassword) { const adminHash = hashPassword(adminPassword); localUsers.set(adminEmail, { email: adminEmail, name: 'Workngilane Admin', isAdmin: true, passwordHash: adminHash.hash, salt: adminHash.salt, createdAt: new Date() }) }
 
-app.get('/api/health', (_req, res) => res.json({ ok: true, database: Boolean(useCollection()), copyright: 'Ntsika Ngilane' }))
+app.get('/api/health', (_req, res) => res.status(databaseError ? 503 : 200).json({ ok: !databaseError, database: Boolean(useCollection()), error: databaseError, copyright: 'Ntsika Ngilane' }))
 app.get('/api/stays', async (req, res) => {
   const locationQuery = String(req.query.location || '').trim()
   const categoryQuery = String(req.query.category || '').trim()
@@ -237,4 +276,12 @@ app.post('/api/quote', (req, res) => {
   const subtotal = nights * nightly
   res.json({ nights, nightly, subtotal, cleaningFee: Math.round(subtotal * 0.08), serviceFee: Math.round(subtotal * 0.12), total: Math.round(subtotal * 1.2 + subtotal * 0.08) })
 })
-app.listen(port, async () => { try { await connectDatabase() } catch (error) { console.error(`MongoDB unavailable; using local seed data: ${error.message}`) } console.log(`API running at http://localhost:${port}`) })
+app.listen(port, async () => {
+  try {
+    await connectDatabase()
+  } catch (error) {
+    databaseError = error.message
+    console.error(`MongoDB unavailable; using local seed data: ${error.message}`)
+  }
+  console.log(`API running at http://localhost:${port}`)
+})
