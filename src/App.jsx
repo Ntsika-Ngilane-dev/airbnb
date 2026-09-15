@@ -40,7 +40,7 @@ function LoginPage({ onLogin, onBack }) {
     let renderTimer
     fetch('/api/auth/config').then((response) => response.json()).then((config) => { setGoogleConfigured(Boolean(config.googleClientId)); setAppleConfigured(Boolean(config.appleConfigured))
       const renderGoogle = () => { if (cancelled || !config.googleClientId || !window.google?.accounts?.id || !googleButton.current) return; window.google.accounts.id.initialize({ client_id: config.googleClientId, callback: async ({ credential }) => { setBusy(true); setError(''); const response = await fetch('/api/auth/google/token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential }) }); const data = await response.json(); setBusy(false); if (!response.ok) return setError(data.error || 'Google login failed'); onLogin(data.user) } }); window.google.accounts.id.renderButton(googleButton.current, { theme: 'outline', size: 'large', width: 360, text: 'continue_with' }) }
-      const waitForGoogle = () => { renderGoogle(); if (!cancelled && !window.google?.accounts?.id) renderTimer = window.setTimeout(waitForGoogle, 100) }
+      const waitForGoogle = () => { renderGoogle(); if (!cancelled && (!window.google?.accounts?.id || !googleButton.current)) renderTimer = window.setTimeout(waitForGoogle, 100) }
       waitForGoogle()
     })
     return () => { cancelled = true; window.clearTimeout(renderTimer) }
