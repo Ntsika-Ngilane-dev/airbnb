@@ -35,8 +35,15 @@ The app also runs without MongoDB using the same seed records in memory, which k
 - `GET /api/stays/:id` returns one listing.
 - `GET /api/locations?q=` returns Google Places or local location suggestions.
 - `POST /api/quote` accepts `checkIn`, `checkOut`, and `pricePerNight` and returns nights, fees, and total.
+- `GET /api/admin/overview` returns protected dashboard metrics for an admin session.
+- `GET|POST|PUT|DELETE /api/admin/listings[:id]` provides protected accommodation CRUD with validation.
+- `GET|POST|PUT|DELETE /api/reservations[:id]` provides authenticated reservation CRUD with date and guest validation.
 
 Each listing includes a nightly price, a 0-5 rating, review count, category, image URL, and `© 2024 Airbnb, Inc.` metadata. The footer credits Ntsika Ngilane.
+
+MongoDB persistence uses Mongoose schemas for users, stays, and reservations alongside the existing collection service. Without `MONGODB_URI`, the API uses validated in-memory records for local development.
+
+The frontend uses browser history routes for `/`, `/search`, `/listing`, `/login`, `/admin`, `/experiences`, `/online`, `/wallet`, `/settings`, and `/help`. Deployments must rewrite those paths to `index.html` (the included Vercel configuration does this).
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 

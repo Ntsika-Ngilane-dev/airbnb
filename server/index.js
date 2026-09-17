@@ -4,7 +4,9 @@ import cors from 'cors'
 import express from 'express'
 import { OAuth2Client } from 'google-auth-library'
 import { MongoClient, ObjectId, ServerApiVersion } from 'mongodb'
-import { SignJWT, decodeJwt, importPKCS8 } from 'jose'
+import mongoose from 'mongoose'
+import { SignJWT, decodeJwt, importPKCS8, jwtVerify } from 'jose'
+import { Reservation, Stay, User } from './models.js'
 
 const app = express()
 const port = Number(process.env.PORT || 4000)
@@ -26,11 +28,14 @@ try {
 }
 const googleClient = process.env.GOOGLE_CLIENT_ID ? new OAuth2Client(process.env.GOOGLE_CLIENT_ID) : null
 const sessionSecret = process.env.SESSION_SECRET || 'local-development-session-secret'
+const jwtSecret = new TextEncoder().encode(sessionSecret)
 const adminEmail = (process.env.ADMIN_EMAIL || 'admin@workngilane.com').toLowerCase()
 const adminPassword = process.env.ADMIN_PASSWORD || (process.env.NODE_ENV !== 'production' ? 'workngilane' : null)
 const localUsers = new Map()
+const localReservations = new Map()
+let localStayCatalog = []
 const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:5174'
-const fallbackStays = [
+const _fallbackStays = [
   ['Over the clouds in the Dolomites', 'Cortina d’Ampezzo, Italy', 382, 'https://images.unsplash.com/photo-1601918774946-25832a4be0d6?auto=format&fit=crop&w=900&q=85', 'Amazing views'],
   ['Sunlit villa with a private pool', 'Paros, Greece', 247, 'https://images.unsplash.com/photo-1530789253388-582c481c54b0?auto=format&fit=crop&w=900&q=85', 'Amazing pools'],
   ['A quiet cabin in the woods', 'Lofoten, Norway', 194, 'https://images.unsplash.com/photo-1510798831971-661eb04b3739?auto=format&fit=crop&w=900&q=85', 'Cabins'],
@@ -119,36 +124,41 @@ export { app, connectDatabase }
 app.use(cors())
 app.use(express.json())
 
-function signSession(payload) {
-  const body = Buffer.from(JSON.stringify(payload)).toString('base64url')
-  const signature = crypto.createHmac('sha256', sessionSecret).update(body).digest('base64url')
-  return `${body}.${signature}`
+async function signSession(payload) {
+  return new SignJWT(payload).setProtectedHeader({ alg: 'HS256', typ: 'JWT' }).setIssuedAt().setExpirationTime('24h').sign(jwtSecret)
 }
-function readSession(req) {
+async function readSession(req) {
   const value = req.headers.cookie?.split(';').map((item) => item.trim()).find((item) => item.startsWith('airbnb_session='))?.split('=')[1]
   if (!value) return null
-  const [body, signature] = value.split('.')
-  if (!body || !signature) return null
-  const expected = crypto.createHmac('sha256', sessionSecret).update(body).digest('base64url')
-  if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null
-  try { const session = JSON.parse(Buffer.from(body, 'base64url').toString()); return session.expiresAt > Date.now() ? session : null } catch { return null }
+  try {
+    const { payload } = await jwtVerify(value, jwtSecret)
+    if (!payload || typeof payload.email !== 'string') return null
+    const session = { ...payload }
+    if (typeof session.expiresAt === 'number' && session.expiresAt < Date.now()) return null
+    return session
+  } catch {
+    return null
+  }
 }
-function requireAdmin(req, res, next) { const session = readSession(req); if (!session?.isAdmin) return res.status(401).json({ error: 'Admin authentication required' }); req.session = session; next() }
-function setSession(res, session) { res.setHeader('Set-Cookie', `airbnb_session=${signSession(session)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400`) }
+async function requireAdmin(req, res, next) { const session = await readSession(req); if (!session?.isAdmin) return res.status(401).json({ error: 'Admin authentication required' }); req.session = session; next() }
+async function setSession(res, session) { const token = await signSession(session); res.setHeader('Set-Cookie', `airbnb_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400`) }
 function setOAuthState(res, state) { res.setHeader('Set-Cookie', `oauth_state=${state}; HttpOnly; SameSite=Lax; Path=/; Max-Age=600`) }
 function getCookie(req, name) { return req.headers.cookie?.split(';').map((item) => item.trim()).find((item) => item.startsWith(`${name}=`))?.split('=')[1] }
 
 app.get('/api/auth/providers', (_req, res) => res.json({ google: Boolean(process.env.GOOGLE_CLIENT_ID), apple: Boolean(process.env.APPLE_CLIENT_ID) }))
 app.get('/api/auth/config', (_req, res) => res.json({ googleClientId: process.env.GOOGLE_CLIENT_ID || null, appleConfigured: Boolean(process.env.APPLE_CLIENT_ID && process.env.APPLE_TEAM_ID && process.env.APPLE_KEY_ID && process.env.APPLE_PRIVATE_KEY) }))
-app.get('/api/auth/me', (req, res) => { const session = readSession(req); res.json({ authenticated: Boolean(session), user: session ? { email: session.email, name: session.name, isAdmin: session.isAdmin } : null }) })
-app.post('/api/auth/login', (req, res) => {
+app.get('/api/auth/me', async (req, res) => { const session = await readSession(req); res.json({ authenticated: Boolean(session), user: session ? { email: session.email, name: session.name, isAdmin: session.isAdmin } : null }) })
+app.post('/api/auth/login', async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase()
   const password = String(req.body.password || '')
-  return findUser(email).then((user) => {
+  try {
+    const user = await findUser(email)
     if (!user || !passwordMatches(password, user)) return res.status(401).json({ error: 'Incorrect email or password' })
-    setSession(res, { ...publicUser(user), expiresAt: Date.now() + 86400000 })
+    await setSession(res, { ...publicUser(user), expiresAt: Date.now() + 86400000 })
     res.json({ user: publicUser(user) })
-  }).catch(() => res.status(500).json({ error: 'Unable to log in' }))
+  } catch {
+    res.status(500).json({ error: 'Unable to log in' })
+  }
 })
 app.post('/api/auth/signup', async (req, res) => {
   const name = String(req.body.name || '').trim()
@@ -174,7 +184,7 @@ app.post('/api/auth/google/token', async (req, res) => {
     if (!payload?.sub || !payload.email || payload.email_verified !== true) return res.status(401).json({ error: 'Invalid Google credential' })
     const email = payload.email.toLowerCase()
     const isAdmin = email === adminEmail
-    setSession(res, { email, name: payload.name || email, isAdmin, expiresAt: Date.now() + 86400000 })
+    await setSession(res, { email, name: payload.name || email, isAdmin, expiresAt: Date.now() + 86400000 })
     res.json({ user: { email, name: payload.name || email, isAdmin } })
   } catch { res.status(401).json({ error: 'Invalid Google credential' }) }
 })
@@ -197,11 +207,11 @@ app.post('/api/auth/apple/callback', async (req, res) => {
     const token = await tokenResponse.json(); if (!tokenResponse.ok || !token.id_token) return res.status(401).send('Apple token exchange failed')
     const claims = decodeJwt(token.id_token); const email = String(claims.email || '').toLowerCase(); if (!email) return res.status(401).send('Apple account email unavailable')
     let user = await findUser(email); if (!user) user = await saveUser({ email, name: email.split('@')[0], isAdmin: email === adminEmail, provider: 'apple', createdAt: new Date() })
-    setSession(res, { ...publicUser(user), expiresAt: Date.now() + 86400000 }); res.redirect(appBaseUrl)
+    await setSession(res, { ...publicUser(user), expiresAt: Date.now() + 86400000 }); res.redirect(appBaseUrl)
   } catch { res.status(502).send('Apple login verification failed') }
 })
 app.get('/api/admin/overview', requireAdmin, async (_req, res) => {
-  const catalog = useCollection() ? await staysCollection.find({}, { projection: { location: 1, category: 1, rating: 1, pricePerNight: 1 } }).toArray() : createStays()
+  const catalog = await getStayCatalog()
   const categoryCounts = new Map(); const locationCounts = new Map(); const ratingCounts = new Map()
   catalog.forEach((stay) => { categoryCounts.set(stay.category, (categoryCounts.get(stay.category) || 0) + 1); locationCounts.set(stay.location, (locationCounts.get(stay.location) || 0) + 1); const rating = Math.floor(Number(stay.rating || 0)); ratingCounts.set(rating, (ratingCounts.get(rating) || 0) + 1) })
   const monthly = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month, index) => { const bookings = 42 + ((index * 17) % 74); return { month, bookings, revenue: bookings * (185 + ((index * 31) % 120)) } })
@@ -209,20 +219,193 @@ app.get('/api/admin/overview', requireAdmin, async (_req, res) => {
   const averageRating = catalog.length ? Number((catalog.reduce((sum, stay) => sum + Number(stay.rating || 0), 0) / catalog.length).toFixed(2)) : 0
   res.json({ stays: catalog.length, locations: locations.length, categories: stayCategories.length, users: usersCollection ? await usersCollection.countDocuments() : localUsers.size, averageRating, totalRevenue, categoryMix: [...categoryCounts].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value), topLocations: [...locationCounts].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value).slice(0, 8), ratingMix: [...ratingCounts].map(([label, value]) => ({ label, value })).sort((a, b) => b.label - a.label), monthly, copyright: '© 2024 Airbnb, Inc.', owner: 'Ntsika Ngilane' })
 })
+app.get('/api/admin/listings', requireAdmin, async (_req, res) => {
+  const catalog = await getStayCatalog()
+  res.json(catalog.map((stay) => ({
+    id: stay._id ? String(stay._id) : stay.id ?? `${stay.title}-${stay.location}`,
+    title: stay.title,
+    location: stay.location,
+    country: stay.country || '',
+    description: stay.description || 'Comfortable Airbnb stay with thoughtful details and a welcoming atmosphere.',
+    bedrooms: stay.bedrooms || 2,
+    bathrooms: stay.bathrooms || 2,
+    guests: stay.guests || 4,
+    type: stay.type || 'Entire place',
+    price: stay.pricePerNight || 0,
+    amenities: stay.amenities || ['Wi‑Fi', 'Kitchen', 'Free parking'],
+    image: stay.image || '',
+    weeklyDiscount: stay.weeklyDiscount || 7,
+    cleaningFee: stay.cleaningFee || 45,
+    serviceFee: stay.serviceFee || 55,
+    occupancyTaxes: stay.occupancyTaxes || 20,
+    rating: stay.rating || 4.8,
+    reviewCount: stay.reviewCount || 38,
+    category: stay.category || 'Cabins',
+  })))
+})
+app.post('/api/admin/listings', requireAdmin, async (req, res) => {
+  try {
+    const listing = normalizeListing(req.body)
+    const record = await saveStayRecord(listing)
+    res.status(201).json(record)
+  } catch (error) {
+    res.status(400).json({ error: error.message })
+  }
+})
+app.get('/api/admin/listings/:id', requireAdmin, async (req, res) => {
+  const record = await findStayRecord(req.params.id)
+  if (!record) return res.status(404).json({ error: 'Listing not found' })
+  res.json(normalizeListing(record))
+})
+app.put('/api/admin/listings/:id', requireAdmin, async (req, res) => {
+  const existing = await findStayRecord(req.params.id)
+  if (!existing) return res.status(404).json({ error: 'Listing not found' })
+  try {
+    const payload = normalizeListing({ ...existing, ...req.body, _id: existing._id })
+    const updated = await replaceStayRecord(req.params.id, payload)
+    res.json(updated)
+  } catch (error) {
+    res.status(400).json({ error: error.message })
+  }
+})
+app.delete('/api/admin/listings/:id', requireAdmin, async (req, res) => {
+  const removed = await deleteStayRecord(req.params.id)
+  if (!removed) return res.status(404).json({ error: 'Listing not found' })
+  res.json({ ok: true, deleted: removed })
+})
+
+app.get('/api/reservations', async (req, res) => {
+  const session = await readSession(req)
+  if (!session) return res.status(401).json({ error: 'Authentication required' })
+  const reservations = reservationsCollection ? await reservationsCollection.find({ userEmail: session.email }).sort({ createdAt: -1 }).toArray() : [...localReservations.values()].filter((reservation) => reservation.userEmail === session.email)
+  res.json(reservations)
+})
+app.post('/api/reservations', async (req, res) => {
+  const session = await readSession(req)
+  if (!session) return res.status(401).json({ error: 'Authentication required' })
+  const stayId = String(req.body.stayId || '').trim()
+  const checkIn = String(req.body.checkIn || '').trim()
+  const checkOut = String(req.body.checkOut || '').trim()
+  const guests = Number(req.body.guests)
+  const nights = nightsBetween(checkIn, checkOut)
+  if (!stayId || !checkIn || !checkOut || nights < 1 || !Number.isInteger(guests) || guests < 1 || guests > 16) return res.status(400).json({ error: 'Choose valid dates and between 1 and 16 guests' })
+  const stay = await findStayRecord(stayId)
+  if (!stay) return res.status(404).json({ error: 'Stay not found' })
+  if (guests > Number(stay.guests || 16)) return res.status(400).json({ error: 'This stay cannot accommodate that many guests' })
+  const pricePerNight = Number(stay.pricePerNight || 0)
+  const reservation = { userEmail: session.email, userName: session.name || session.email, stayId, stayTitle: stay.title, location: stay.location, checkIn, checkOut, guests, nights, subtotal: nights * pricePerNight, status: 'confirmed', createdAt: new Date() }
+  if (reservationsCollection) { const result = await reservationsCollection.insertOne(reservation); return res.status(201).json({ ...reservation, _id: result.insertedId }) }
+  const id = crypto.randomUUID(); const saved = { ...reservation, id }; localReservations.set(id, saved); res.status(201).json(saved)
+})
+app.put('/api/reservations/:id', async (req, res) => {
+  const session = await readSession(req)
+  if (!session) return res.status(401).json({ error: 'Authentication required' })
+  const existing = reservationsCollection && ObjectId.isValid(req.params.id) ? await reservationsCollection.findOne({ _id: new ObjectId(req.params.id), userEmail: session.email }) : localReservations.get(req.params.id)
+  if (!existing || existing.userEmail !== session.email) return res.status(404).json({ error: 'Reservation not found' })
+  const checkIn = String(req.body.checkIn || existing.checkIn).trim(); const checkOut = String(req.body.checkOut || existing.checkOut).trim(); const guests = Number(req.body.guests || existing.guests); const nights = nightsBetween(checkIn, checkOut)
+  if (nights < 1 || !Number.isInteger(guests) || guests < 1 || guests > 16) return res.status(400).json({ error: 'Choose valid dates and between 1 and 16 guests' })
+  const updated = { ...existing, checkIn, checkOut, guests, nights, subtotal: nights * Number(existing.subtotal || 0) / Math.max(existing.nights || 1, 1), updatedAt: new Date() }
+  if (reservationsCollection) { const result = await reservationsCollection.findOneAndUpdate({ _id: new ObjectId(req.params.id), userEmail: session.email }, { $set: updated }, { returnDocument: 'after' }); return res.json(result.value || updated) }
+  localReservations.set(req.params.id, updated); res.json(updated)
+})
+app.delete('/api/reservations/:id', async (req, res) => {
+  const session = await readSession(req)
+  if (!session) return res.status(401).json({ error: 'Authentication required' })
+  if (reservationsCollection) { if (!ObjectId.isValid(req.params.id)) return res.status(404).json({ error: 'Reservation not found' }); const result = await reservationsCollection.deleteOne({ _id: new ObjectId(req.params.id), userEmail: session.email }); if (!result.deletedCount) return res.status(404).json({ error: 'Reservation not found' }); return res.json({ ok: true }) }
+  const reservation = localReservations.get(req.params.id); if (!reservation || reservation.userEmail !== session.email) return res.status(404).json({ error: 'Reservation not found' }); localReservations.delete(req.params.id); res.json({ ok: true })
+})
 
 let staysCollection
 let usersCollection
+let reservationsCollection
 function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) { return { salt, hash: crypto.scryptSync(password, salt, 64).toString('hex') } }
 function passwordMatches(password, record) { const candidate = crypto.scryptSync(password, record.salt, 64); return crypto.timingSafeEqual(candidate, Buffer.from(record.passwordHash, 'hex')) }
 function publicUser(user) { return { email: user.email, name: user.name, isAdmin: user.isAdmin } }
+function normalizeListing(payload = {}) {
+  const pricePerNight = Number(payload.price || payload.pricePerNight)
+  if (payload.title !== undefined && String(payload.title).trim().length < 3) throw new Error('Listing title must be at least 3 characters')
+  if (payload.location !== undefined && String(payload.location).trim().length < 2) throw new Error('Listing location is required')
+  if (payload.price !== undefined && (!Number.isFinite(pricePerNight) || pricePerNight <= 0)) throw new Error('Listing price must be greater than zero')
+  const id = payload._id ? String(payload._id) : payload.id || undefined
+  return {
+    ...payload,
+    _id: id ? new ObjectId(id) : undefined,
+    title: String(payload.title || '').trim() || 'New listing',
+    location: String(payload.location || '').trim() || 'Unknown location',
+    country: String(payload.country || '').trim() || 'United States',
+    description: String(payload.description || '').trim() || 'Comfortable Airbnb stay.',
+    bedrooms: Number(payload.bedrooms || 2),
+    bathrooms: Number(payload.bathrooms || 2),
+    guests: Number(payload.guests || 4),
+    type: String(payload.type || 'Entire place').trim(),
+    pricePerNight: Number.isFinite(pricePerNight) && pricePerNight > 0 ? pricePerNight : 150,
+    amenities: Array.isArray(payload.amenities) && payload.amenities.length ? payload.amenities : ['Wi‑Fi', 'Kitchen', 'Free parking'],
+    image: String(payload.image || 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=85'),
+    weeklyDiscount: Number(payload.weeklyDiscount || 7),
+    cleaningFee: Number(payload.cleaningFee || 45),
+    serviceFee: Number(payload.serviceFee || 55),
+    occupancyTaxes: Number(payload.occupancyTaxes || 20),
+    rating: Number(payload.rating || 4.8),
+    reviewCount: Number(payload.reviewCount || 38),
+    category: String(payload.category || 'Cabins').trim(),
+    guestFavorite: Boolean(payload.guestFavorite),
+    copyright: payload.copyright || '© 2024 Airbnb, Inc.'
+  }
+}
+async function getStayCatalog() {
+  if (staysCollection) return staysCollection.find({}).toArray()
+  if (!localStayCatalog.length) localStayCatalog = createStays()
+  return [...localStayCatalog]
+}
+async function findStayRecord(id) {
+  if (staysCollection) {
+    if (!ObjectId.isValid(id)) return null
+    return staysCollection.findOne({ _id: new ObjectId(id) })
+  }
+  if (!localStayCatalog.length) localStayCatalog = createStays()
+  return localStayCatalog.find((stay) => String(stay._id || stay.id || `${stay.title}-${stay.location}`) === String(id)) || null
+}
+async function saveStayRecord(payload) {
+  const record = normalizeListing(payload)
+  if (staysCollection) {
+    const result = await staysCollection.insertOne(record)
+    return { ...record, _id: result.insertedId }
+  }
+  const id = crypto.randomUUID()
+  const item = { ...record, _id: id, id }
+  localStayCatalog = [...localStayCatalog, item]
+  return item
+}
+async function replaceStayRecord(id, payload) {
+  const record = normalizeListing({ ...payload, _id: id })
+  if (staysCollection) {
+    const result = await staysCollection.findOneAndUpdate({ _id: new ObjectId(id) }, { $set: record }, { returnDocument: 'after' })
+    return result.value || record
+  }
+  localStayCatalog = localStayCatalog.map((stay) => String(stay._id || stay.id || `${stay.title}-${stay.location}`) === String(id) ? { ...record, _id: id, id } : stay)
+  return { ...record, _id: id, id }
+}
+async function deleteStayRecord(id) {
+  if (staysCollection) {
+    if (!ObjectId.isValid(id)) return null
+    const result = await staysCollection.findOneAndDelete({ _id: new ObjectId(id) })
+    return result.value ? result.value : null
+  }
+  const existing = localStayCatalog.find((stay) => String(stay._id || stay.id || `${stay.title}-${stay.location}`) === String(id))
+  if (!existing) return null
+  localStayCatalog = localStayCatalog.filter((stay) => String(stay._id || stay.id || `${stay.title}-${stay.location}`) !== String(id))
+  return existing
+}
 async function findUser(email) { return usersCollection ? usersCollection.findOne({ email }) : localUsers.get(email) }
 async function saveUser(user) { if (usersCollection) await usersCollection.updateOne({ email: user.email }, { $set: user }, { upsert: true }); else localUsers.set(user.email, user); return user }
 async function connectDatabase() {
   if (!client) throw new Error('MONGODB_URI is missing from .env')
+  await mongoose.connect(process.env.MONGODB_URI, { dbName: process.env.MONGODB_DB || 'airbnb_clone', serverSelectionTimeoutMS: 15000 })
   await client.connect()
   await client.db('admin').command({ ping: 1 })
-  staysCollection = client.db(process.env.MONGODB_DB || 'airbnb_clone').collection('stays')
-  usersCollection = client.db(process.env.MONGODB_DB || 'airbnb_clone').collection('users')
+  staysCollection = Stay.collection
+  usersCollection = User.collection
+  reservationsCollection = Reservation.collection
   await usersCollection.createIndex({ email: 1 }, { unique: true })
   if (adminPassword) { const adminHash = hashPassword(adminPassword); await usersCollection.updateOne({ email: adminEmail }, { $set: { email: adminEmail, name: 'Workngilane Admin', isAdmin: true, passwordHash: adminHash.hash, salt: adminHash.salt }, $setOnInsert: { createdAt: new Date() } }, { upsert: true }) }
   const stayCount = await staysCollection.countDocuments()
