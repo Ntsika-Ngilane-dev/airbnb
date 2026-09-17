@@ -37,6 +37,7 @@ The app also runs without MongoDB using the same seed records in memory, which k
 - `POST /api/quote` accepts `checkIn`, `checkOut`, and `pricePerNight` and returns nights, fees, and total.
 - `GET /api/admin/overview` returns protected dashboard metrics for an admin session.
 - `GET|POST|PUT|DELETE /api/admin/listings[:id]` provides protected accommodation CRUD with validation.
+- `POST /api/host/listings` publishes a validated listing for any authenticated user, promotes that user to admin, and refreshes their session.
 - `GET|POST|PUT|DELETE /api/reservations[:id]` provides authenticated reservation CRUD with date and guest validation.
 
 Each listing includes a nightly price, a 0-5 rating, review count, category, image URL, and `© 2024 Airbnb, Inc.` metadata. The footer credits Ntsika Ngilane.

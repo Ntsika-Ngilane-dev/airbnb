@@ -1,9 +1,15 @@
 import mongoose from 'mongoose'
 
 const listingSchema = new mongoose.Schema({
+  hostEmail: { type: String, trim: true, index: true },
+  hostName: { type: String, trim: true },
+  hostPhone: { type: String, trim: true },
   title: { type: String, required: true, minlength: 3, trim: true },
   location: { type: String, required: true, trim: true },
   country: { type: String, required: true, trim: true },
+  addressLine1: { type: String, trim: true },
+  addressLine2: { type: String, trim: true },
+  postalCode: { type: String, trim: true },
   description: { type: String, required: true },
   bedrooms: { type: Number, min: 0, required: true },
   bathrooms: { type: Number, min: 0, required: true },
@@ -12,6 +18,7 @@ const listingSchema = new mongoose.Schema({
   pricePerNight: { type: Number, min: 1, required: true },
   amenities: { type: [String], default: [] },
   image: { type: String, required: true },
+  images: { type: [String], default: [] },
   weeklyDiscount: { type: Number, min: 0, default: 0 },
   cleaningFee: { type: Number, min: 0, default: 0 },
   serviceFee: { type: Number, min: 0, default: 0 },
@@ -19,6 +26,15 @@ const listingSchema = new mongoose.Schema({
   rating: { type: Number, min: 0, max: 5, default: 4.8 },
   reviewCount: { type: Number, min: 0, default: 0 },
   category: { type: String, required: true },
+  propertySize: { type: Number, min: 1 },
+  furnished: { type: Boolean, default: true },
+  parking: { type: String, trim: true },
+  checkInFrom: { type: String, trim: true },
+  checkOutBy: { type: String, trim: true },
+  minimumStay: { type: Number, min: 1, default: 1 },
+  availability: { type: String, trim: true },
+  houseRules: { type: String, trim: true },
+  cancellationPolicy: { type: String, trim: true },
   guestFavorite: { type: Boolean, default: false },
 }, { timestamps: true })
 

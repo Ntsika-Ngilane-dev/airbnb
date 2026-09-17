@@ -26,7 +26,28 @@ footer { border-top: 1px solid #eee; display: flex; justify-content: space-betwe
 .experience-card small { display: block; color: #777; font-size: 12px; }
 .experience-card strong { display: block; margin-top: 12px; font-size: 13px; }
 .experience-card button { border: 0; background: none; padding: 15px 0 0; font-size: 13px; font-weight: 700; }
+.experience-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+.experience-heading h2 { margin: 6px 0 0; }
+.experience-filters { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+.experience-filters button { border: 1px solid #d8d8d8; border-radius: 999px; background: #fff; padding: 8px 13px; color: #555; font-size: 12px; font-weight: 700; }
+.experience-filters button.active { border-color: #222; background: #222; color: #fff; }
+.host-landing { min-height: 100vh; background: #f7f4ef; color: #252525; }
+.host-landing-top { display: flex; align-items: center; justify-content: space-between; padding: 24px 48px; background: #f7f4ef; }
+.host-landing-hero { display: grid; grid-template-columns: .85fr 1.15fr; align-items: center; gap: 60px; max-width: 1320px; margin: 0 auto; padding: 55px 48px 95px; }
+.host-landing-hero h1 { max-width: 600px; margin: 12px 0 20px; font-family: 'Manrope', sans-serif; font-size: clamp(42px, 5.5vw, 78px); line-height: 1.02; letter-spacing: -2px; }
+.host-landing-hero p { max-width: 490px; color: #5e5b57; font-size: 17px; line-height: 1.6; margin-bottom: 28px; }
+.host-landing-hero img { width: 100%; aspect-ratio: 1.2 / 1; object-fit: cover; border-radius: 18px; }
+.host-landing-content { display: grid; grid-template-columns: .7fr 1.3fr; gap: 80px; padding: 80px 8%; background: #fff; }
+.host-landing-content h2 { max-width: 300px; margin: 9px 0; font-family: 'Manrope', sans-serif; font-size: 38px; letter-spacing: -1px; }
+.host-benefits { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+.host-benefits article { border-top: 2px solid #222; padding-top: 16px; }
+.host-benefits strong { color: #ff385c; font-size: 12px; }
+.host-benefits h3 { margin: 22px 0 8px; font-size: 19px; }
+.host-benefits p { color: #666; font-size: 13px; line-height: 1.6; }
+.host-landing-quote { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 65px 8%; background: #dbe9e4; }
+.host-landing-quote p { max-width: 600px; margin: 0; font-family: 'Manrope', sans-serif; font-size: clamp(24px, 3vw, 42px); line-height: 1.15; }
 @media (max-width:800px) { .experience-top,.experience-hero,.experience-section { padding-left: 20px; padding-right: 20px; }.experience-hero { padding-top: 55px; padding-bottom: 60px; }.experience-grid { grid-template-columns: 1fr; gap: 18px; } }
+@media (max-width:800px) { .experience-heading,.host-landing-quote { align-items: stretch; flex-direction: column; }.host-landing-top { padding: 20px; }.host-landing-hero { grid-template-columns: 1fr; gap: 30px; padding: 35px 20px 60px; }.host-landing-hero h1 { letter-spacing: -1px; }.host-landing-content { grid-template-columns: 1fr; gap: 28px; padding: 55px 20px; }.host-benefits { grid-template-columns: 1fr; gap: 24px; }.host-landing-quote { padding: 50px 20px; } }
 .auth-page { min-height: 100vh; padding: 35px 48px; background: #f7f7f7; }
 .auth-card { width: min(430px, 100%); margin: 45px auto; padding: 32px; border: 1px solid #ddd; border-radius: 16px; background: #fff; box-shadow: 0 8px 25px #0000000d; }
 .auth-brand { display: flex; align-items: center; gap: 6px; color: #ff385c; font-size: 21px; font-weight: 800; margin-bottom: 30px; }.auth-brand .brand-mark { font-size: 29px; }.auth-card h1 { color: #222; font-size: 32px; letter-spacing: -1px; margin: 0 0 5px; }.auth-subtitle { color: #717171; font-size: 14px; margin: 0 0 25px; }.auth-card label { display: block; color: #444; font-size: 12px; font-weight: 700; margin-bottom: 15px; }.auth-card label input { width: 100%; display: block; border: 1px solid #aaa; border-radius: 7px; padding: 13px; margin-top: 6px; outline-color: #ff385c; font: inherit; }.auth-submit,.social-button { width: 100%; border-radius: 8px; padding: 13px; font-weight: 700; }.auth-submit { border: 0; color: #fff; background: #ff385c; }.auth-submit:disabled { opacity: .65; }.auth-divider { display: flex; align-items: center; gap: 12px; color: #777; font-size: 12px; margin: 22px 0 15px; }.auth-divider::before,.auth-divider::after { content: ''; height: 1px; flex: 1; background: #ddd; }.social-button { display: flex; justify-content: center; align-items: center; gap: 10px; border: 1px solid #222; background: #fff; margin-top: 10px; }.social-button strong { position: absolute; margin-right: 280px; font-size: 17px; }.auth-error { color: #c13515; background: #fff1ee; border-radius: 6px; padding: 9px; font-size: 12px; }.auth-note { color: #888; font-size: 11px; line-height: 1.5; text-align: center; margin: 22px 0 0; }
@@ -56,6 +77,16 @@ footer { border-top: 1px solid #eee; display: flex; justify-content: space-betwe
 .admin-nav button.active,.listing-actions button:hover { border-color: #222; background: #222; color: #fff; }
 .admin-form-panel { max-width: 100%; margin-top: 18px; }
 .admin-form { max-width: 1100px; }
+.host-progress { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; max-width: 620px; margin-bottom: 28px; }
+.host-progress span { height: 5px; border-radius: 999px; background: #e5e5e5; }
+.host-progress span.active { background: #ff385c; }
+.host-review { display: grid; gap: 8px; max-width: 520px; border: 1px solid #e4e4e4; border-radius: 10px; padding: 18px; background: #fafafa; }
+.host-review strong { font-size: 18px; }
+.host-review span,.host-review small { color: #666; }
+.host-photo-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.host-photo-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; }
+.host-photo { position: relative; }
+.host-photo button { width: 100%; border: 1px solid #ddd; border-radius: 0 0 8px 8px; background: #fff; padding: 7px; color: #c13515; font-size: 11px; font-weight: 700; }
 .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
 .form-grid label { color: #444; font-size: 12px; font-weight: 700; }
 .form-grid input,.form-grid select,.form-grid textarea { display: block; width: 100%; box-sizing: border-box; border: 1px solid #aaa; border-radius: 7px; background: #fff; font: inherit; margin-top: 7px; padding: 12px; }

@@ -171,7 +171,7 @@ app.post('/api/auth/signup', async (req, res) => {
   const passwordData = hashPassword(password)
   const user = { email, name, isAdmin: false, passwordHash: passwordData.hash, salt: passwordData.salt, createdAt: new Date() }
   await saveUser(user)
-  setSession(res, { ...publicUser(user), expiresAt: Date.now() + 86400000 })
+  await setSession(res, { ...publicUser(user), expiresAt: Date.now() + 86400000 })
   res.status(201).json({ user: publicUser(user) })
 })
 app.post('/api/auth/google/token', async (req, res) => {
@@ -223,9 +223,15 @@ app.get('/api/admin/listings', requireAdmin, async (_req, res) => {
   const catalog = await getStayCatalog()
   res.json(catalog.map((stay) => ({
     id: stay._id ? String(stay._id) : stay.id ?? `${stay.title}-${stay.location}`,
+    hostEmail: stay.hostEmail || '',
+    hostName: stay.hostName || '',
+    hostPhone: stay.hostPhone || '',
     title: stay.title,
     location: stay.location,
     country: stay.country || '',
+    addressLine1: stay.addressLine1 || '',
+    addressLine2: stay.addressLine2 || '',
+    postalCode: stay.postalCode || '',
     description: stay.description || 'Comfortable Airbnb stay with thoughtful details and a welcoming atmosphere.',
     bedrooms: stay.bedrooms || 2,
     bathrooms: stay.bathrooms || 2,
@@ -234,6 +240,7 @@ app.get('/api/admin/listings', requireAdmin, async (_req, res) => {
     price: stay.pricePerNight || 0,
     amenities: stay.amenities || ['Wi‑Fi', 'Kitchen', 'Free parking'],
     image: stay.image || '',
+    images: stay.images || (stay.image ? [stay.image] : []),
     weeklyDiscount: stay.weeklyDiscount || 7,
     cleaningFee: stay.cleaningFee || 45,
     serviceFee: stay.serviceFee || 55,
@@ -241,6 +248,15 @@ app.get('/api/admin/listings', requireAdmin, async (_req, res) => {
     rating: stay.rating || 4.8,
     reviewCount: stay.reviewCount || 38,
     category: stay.category || 'Cabins',
+    propertySize: stay.propertySize || 0,
+    furnished: stay.furnished !== false,
+    parking: stay.parking || '',
+    checkInFrom: stay.checkInFrom || '',
+    checkOutBy: stay.checkOutBy || '',
+    minimumStay: stay.minimumStay || 1,
+    availability: stay.availability || '',
+    houseRules: stay.houseRules || '',
+    cancellationPolicy: stay.cancellationPolicy || '',
   })))
 })
 app.post('/api/admin/listings', requireAdmin, async (req, res) => {
@@ -248,6 +264,40 @@ app.post('/api/admin/listings', requireAdmin, async (req, res) => {
     const listing = normalizeListing(req.body)
     const record = await saveStayRecord(listing)
     res.status(201).json(record)
+  } catch (error) {
+    res.status(400).json({ error: error.message })
+  }
+})
+app.post('/api/host/listings', async (req, res) => {
+  const session = await readSession(req)
+  if (!session?.email) return res.status(401).json({ error: 'Log in to start hosting' })
+  try {
+    const title = String(req.body.title || '').trim()
+    const location = String(req.body.location || '').trim()
+    const country = String(req.body.country || '').trim()
+    const addressLine1 = String(req.body.addressLine1 || '').trim()
+    const postalCode = String(req.body.postalCode || '').trim()
+    const hostPhone = String(req.body.hostPhone || '').trim()
+    const description = String(req.body.description || '').trim()
+    const image = String(req.body.image || '').trim()
+    const price = Number(req.body.price)
+    const guests = Number(req.body.guests)
+    const bedrooms = Number(req.body.bedrooms)
+    const bathrooms = Number(req.body.bathrooms)
+    if (title.length < 3 || location.length < 2 || country.length < 2 || addressLine1.length < 5 || postalCode.length < 2 || description.length < 20) throw new Error('Add a title, complete address, country, and a description of at least 20 characters')
+    if (!/^\+?[0-9 ()-]{7,20}$/.test(hostPhone)) throw new Error('Enter a valid host phone number')
+    if (!image) throw new Error('A listing image is required')
+    if (!Number.isFinite(price) || price <= 0 || !Number.isInteger(guests) || guests < 1 || guests > 16 || !Number.isFinite(bedrooms) || bedrooms < 0 || !Number.isFinite(bathrooms) || bathrooms < 0) throw new Error('Enter valid home capacity and pricing details')
+    if (!Array.isArray(req.body.amenities) || !req.body.amenities.length) throw new Error('Add at least one amenity')
+    const listing = normalizeListing({ ...req.body, hostEmail: session.email, hostName: session.name || session.email, hostPhone })
+    const record = await saveStayRecord(listing)
+    const user = await findUser(session.email)
+    if (user) {
+      user.isAdmin = true
+      await saveUser(user)
+    }
+    await setSession(res, { ...session, isAdmin: true, expiresAt: Date.now() + 86400000 })
+    res.status(201).json({ listing: record, user: { ...publicUser(user || session), isAdmin: true } })
   } catch (error) {
     res.status(400).json({ error: error.message })
   }
@@ -330,9 +380,15 @@ function normalizeListing(payload = {}) {
   return {
     ...payload,
     _id: id ? new ObjectId(id) : undefined,
+    hostEmail: String(payload.hostEmail || '').trim() || undefined,
+    hostName: String(payload.hostName || '').trim() || undefined,
+    hostPhone: String(payload.hostPhone || '').trim() || undefined,
     title: String(payload.title || '').trim() || 'New listing',
     location: String(payload.location || '').trim() || 'Unknown location',
     country: String(payload.country || '').trim() || 'United States',
+    addressLine1: String(payload.addressLine1 || '').trim(),
+    addressLine2: String(payload.addressLine2 || '').trim(),
+    postalCode: String(payload.postalCode || '').trim(),
     description: String(payload.description || '').trim() || 'Comfortable Airbnb stay.',
     bedrooms: Number(payload.bedrooms || 2),
     bathrooms: Number(payload.bathrooms || 2),
@@ -341,6 +397,7 @@ function normalizeListing(payload = {}) {
     pricePerNight: Number.isFinite(pricePerNight) && pricePerNight > 0 ? pricePerNight : 150,
     amenities: Array.isArray(payload.amenities) && payload.amenities.length ? payload.amenities : ['Wi‑Fi', 'Kitchen', 'Free parking'],
     image: String(payload.image || 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=85'),
+    images: Array.isArray(payload.images) && payload.images.length ? payload.images : [String(payload.image || 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=900&q=85')],
     weeklyDiscount: Number(payload.weeklyDiscount || 7),
     cleaningFee: Number(payload.cleaningFee || 45),
     serviceFee: Number(payload.serviceFee || 55),
@@ -348,6 +405,15 @@ function normalizeListing(payload = {}) {
     rating: Number(payload.rating || 4.8),
     reviewCount: Number(payload.reviewCount || 38),
     category: String(payload.category || 'Cabins').trim(),
+    propertySize: Number(payload.propertySize || 0) || undefined,
+    furnished: payload.furnished !== false,
+    parking: String(payload.parking || '').trim(),
+    checkInFrom: String(payload.checkInFrom || '').trim(),
+    checkOutBy: String(payload.checkOutBy || '').trim(),
+    minimumStay: Math.max(1, Number(payload.minimumStay || 1)),
+    availability: String(payload.availability || '').trim(),
+    houseRules: String(payload.houseRules || '').trim(),
+    cancellationPolicy: String(payload.cancellationPolicy || '').trim(),
     guestFavorite: Boolean(payload.guestFavorite),
     copyright: payload.copyright || '© 2024 Airbnb, Inc.'
   }
@@ -388,8 +454,11 @@ async function replaceStayRecord(id, payload) {
 async function deleteStayRecord(id) {
   if (staysCollection) {
     if (!ObjectId.isValid(id)) return null
-    const result = await staysCollection.findOneAndDelete({ _id: new ObjectId(id) })
-    return result.value ? result.value : null
+    const filter = { _id: new ObjectId(id) }
+    const existing = await staysCollection.findOne(filter)
+    if (!existing) return null
+    await staysCollection.deleteOne(filter)
+    return existing
   }
   const existing = localStayCatalog.find((stay) => String(stay._id || stay.id || `${stay.title}-${stay.location}`) === String(id))
   if (!existing) return null
@@ -397,7 +466,7 @@ async function deleteStayRecord(id) {
   return existing
 }
 async function findUser(email) { return usersCollection ? usersCollection.findOne({ email }) : localUsers.get(email) }
-async function saveUser(user) { if (usersCollection) await usersCollection.updateOne({ email: user.email }, { $set: user }, { upsert: true }); else localUsers.set(user.email, user); return user }
+async function saveUser(user) { if (usersCollection) { const { _id, ...userData } = user; await usersCollection.updateOne({ email: user.email }, { $set: userData }, { upsert: true }) } else localUsers.set(user.email, user); return user }
 async function connectDatabase() {
   if (!client) throw new Error('MONGODB_URI is missing from .env')
   await mongoose.connect(process.env.MONGODB_URI, { dbName: process.env.MONGODB_DB || 'airbnb_clone', serverSelectionTimeoutMS: 15000 })
@@ -438,13 +507,16 @@ app.get('/api/stays', async (req, res) => {
 
   const source = collection
     ? await collection.find(filters).limit(limit).toArray()
-    : createStays().filter((stay) => (!categoryQuery || stay.category === categoryQuery) && (!locationQuery || stay.location.toLowerCase().includes(locationQuery.toLowerCase()) || stay.country.toLowerCase().includes(locationQuery.toLowerCase()))).slice(0, limit)
+    : (localStayCatalog.length ? localStayCatalog : createStays()).filter((stay) => (!categoryQuery || stay.category === categoryQuery) && (!locationQuery || stay.location.toLowerCase().includes(locationQuery.toLowerCase()) || stay.country.toLowerCase().includes(locationQuery.toLowerCase()))).slice(0, limit)
 
   res.json(source)
 })
 app.get('/api/stays/:id', async (req, res) => {
   const collection = useCollection()
-  const stay = collection && ObjectId.isValid(req.params.id) ? await collection.findOne({ _id: new ObjectId(req.params.id) }) : createStays().find((item) => item.title === decodeURIComponent(req.params.id))
+  const listingId = decodeURIComponent(req.params.id)
+  const stay = collection
+    ? await collection.findOne(ObjectId.isValid(listingId) ? { _id: new ObjectId(listingId) } : { title: listingId })
+    : (localStayCatalog.length ? localStayCatalog : createStays()).find((item) => item.title === listingId || String(item._id || item.id) === listingId)
   if (!stay) return res.status(404).json({ error: 'Stay not found' })
   res.json(stay)
 })
