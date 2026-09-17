@@ -11,7 +11,7 @@ function HeartIcon({ filled = false }) { return <svg viewBox="0 0 24 24" aria-hi
 function formatMoney(value, currency) { const [code, symbol, rate] = currency; return `${symbol}${Math.round(value * rate).toLocaleString()} ${code}` }
 
 function CurrencyMenu({ currency = currencies[0], onSelect }) {
-  return <div className="currency-menu" role="menu">{currencies.map((item) => <button type="button" role="menuitemradio" aria-checked={item[0] === currency[0]} className={item[0] === currency[0] ? 'selected' : ''} key={item[0]} onClick={() => onSelect(item)}>{item[1]} {item[0]}</button>)}</div>
+  return <div className="currency-menu" role="menu">{currencies.map((item) => <button type="button" role="menuitemradio" aria-checked={item[0] === currency[0]} className={item[0] === currency[0] ? 'selected' : ''} key={item[0]} onClick={() => onSelect(item)}>{item[0]} ({item[1]})</button>)}</div>
 }
 
 const experienceCards = [
