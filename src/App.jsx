@@ -163,11 +163,11 @@ function HostListingApplication({ user, onComplete, onCancel }) {
     setBusy(true); setError('')
     try {
       const images = form.images.length ? form.images : [form.image]
-      const response = await fetch('/api/host/listings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, image: images[0], images, price: Number(form.price), bedrooms: Number(form.bedrooms), bathrooms: Number(form.bathrooms), guests: Number(form.guests), propertySize: Number(form.propertySize), minimumStay: Number(form.minimumStay), weeklyDiscount: Number(form.weeklyDiscount), cleaningFee: Number(form.cleaningFee), serviceFee: Number(form.serviceFee), occupancyTaxes: Number(form.occupancyTaxes), amenities: form.amenities.split(',').map((item) => item.trim()).filter(Boolean) }) })
-      const data = await response.json()
+      const response = await fetch('/api/host/listings', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, image: images[0], images, price: Number(form.price), bedrooms: Number(form.bedrooms), bathrooms: Number(form.bathrooms), guests: Number(form.guests), propertySize: Number(form.propertySize), minimumStay: Number(form.minimumStay), weeklyDiscount: Number(form.weeklyDiscount), cleaningFee: Number(form.cleaningFee), serviceFee: Number(form.serviceFee), occupancyTaxes: Number(form.occupancyTaxes), amenities: form.amenities.split(',').map((item) => item.trim()).filter(Boolean) }) })
+      const data = await response.json().catch(() => ({ error: 'The server returned an invalid response.' }))
       if (!response.ok) return setError(data.error || 'Unable to create your listing.')
       localStorage.removeItem(draftKey)
-      onComplete(data.user)
+      onComplete(data.user, data.listing)
     } catch { setError('The server is unavailable. Start it with npm run dev:full.') } finally { setBusy(false) }
   }
   const headings = ['Contact and address', 'Property basics', 'Rooms and amenities', 'Pricing and availability', 'Guest policies', 'Photos and review']
@@ -206,8 +206,8 @@ function ReservationsPage({ onBack }) {
   return <main className="account-page"><button className="back-button" type="button" onClick={onBack}>← Back to dashboard</button><section className="account-heading"><span className="eyebrow">Guest account</span><h1>Reservations</h1><p>Review and manage your confirmed stays.</p></section>{error && <p className="auth-error">{error}</p>}<section className="account-panel reservation-list">{reservations.length ? reservations.map((reservation) => { const id = reservation.id || reservation._id; return <div className="payment-method" key={id}><span className="payment-icon">✓</span><div><strong>{reservation.stayTitle}</strong><small>{reservation.location} · {reservation.checkIn} to {reservation.checkOut} · {reservation.guests} guests</small></div><button type="button" onClick={() => edit(reservation)}>Edit</button><button type="button" onClick={() => remove(id)}>Cancel</button></div> }) : <p className="empty-state">No reservations yet. Reserve a stay to see it here.</p>}</section></main>
 }
 
-function AdminPage({ user, onLogout, onBack }) {
-  const [overview, setOverview] = useState(null); const [listings, setListings] = useState([]); const [page, setPage] = useState('overview'); const [editing, setEditing] = useState(null); const [menuOpen, setMenuOpen] = useState(false); const [error, setError] = useState('')
+function AdminPage({ user, onLogout, onBack, createdListing }) {
+  const [overview, setOverview] = useState(null); const [listings, setListings] = useState(createdListing ? [createdListing] : []); const [page, setPage] = useState(createdListing ? 'listings' : 'overview'); const [editing, setEditing] = useState(null); const [menuOpen, setMenuOpen] = useState(false); const [error, setError] = useState('')
   const refresh = async () => { const [overviewResponse, listingsResponse] = await Promise.all([fetch('/api/admin/overview'), fetch('/api/admin/listings')]); if (overviewResponse.ok) setOverview(await overviewResponse.json()); if (listingsResponse.ok) setListings(await listingsResponse.json()) }
   // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => { refresh() }, [])
@@ -258,7 +258,7 @@ function viewFromPath(pathname) {
 }
 
 function App() {
-  const [stays, setStays] = useState([]); const [view, setView] = useState(() => viewFromPath(window.location.pathname)); const [selectedStay, setSelectedStay] = useState(null); const [user, setUser] = useState(null)
+  const [stays, setStays] = useState([]); const [view, setView] = useState(() => viewFromPath(window.location.pathname)); const [selectedStay, setSelectedStay] = useState(null); const [user, setUser] = useState(null); const [createdListing, setCreatedListing] = useState(null)
   const [authReady, setAuthReady] = useState(false)
   const [activeCategory, setActiveCategory] = useState(''); const [location, setLocation] = useState(''); const [suggestions, setSuggestions] = useState([]); const [showSuggestions, setShowSuggestions] = useState(false); const [currency, setCurrency] = useState(() => currencies.find((item) => item[0] === window.localStorage.getItem('airbnb-currency')) || currencies[0]); const [currencyOpen, setCurrencyOpen] = useState(false); const [footerCurrencyOpen, setFooterCurrencyOpen] = useState(false); const [favorites, setFavorites] = useState([])
   const [checkIn, setCheckIn] = useState(''); const [checkOut, setCheckOut] = useState(''); const [guests, setGuests] = useState(0); const [quote, setQuote] = useState(null); const [menuOpen, setMenuOpen] = useState(false)
@@ -294,9 +294,9 @@ function App() {
   if (view === 'admin' && !user?.isAdmin) return <LoginPage onLogin={finishLogin} onBack={() => setView('home')} />
   if (!authReady && (view === 'host-onboarding' || view === 'admin')) return <main className="auth-page"><div className="auth-card auth-loading"><div className="auth-brand"><span className="brand-mark">⌂</span><span>airbnb</span></div><h1>Loading your workspace</h1><p className="auth-subtitle">Checking your account before opening the listing form.</p></div></main>
   if (view === 'host-onboarding' && !user) return <LoginPage onLogin={(nextUser) => { setUser(nextUser); setView('host-onboarding') }} onBack={() => setView('host')} />
-  if (view === 'admin') return <AdminPage user={user} onLogout={logout} onBack={() => setView('home')} />
+  if (view === 'admin') return <AdminPage user={user} createdListing={createdListing} onLogout={logout} onBack={() => setView('home')} />
   if (view === 'host') return <HostLandingPage onStart={() => setView('host-onboarding')} onBack={() => setView('home')} />
-  if (view === 'host-onboarding') return <HostListingApplication user={user} onComplete={(nextUser) => { setUser(nextUser); setView('admin') }} onCancel={() => setView('host')} />
+  if (view === 'host-onboarding') return <HostListingApplication user={user} onComplete={(nextUser, listing) => { setUser(nextUser); setCreatedListing(listing ? { ...listing, id: listing.id || listing._id } : null); setView('admin') }} onCancel={() => setView('host')} />
   if (view === 'reservations') return <ReservationsPage onBack={() => setView('home')} />
   if (view === 'wallet') return <WalletPage onBack={() => setView('home')} />
   if (view === 'settings') return <SettingsPage user={user} onBack={() => setView('home')} />
