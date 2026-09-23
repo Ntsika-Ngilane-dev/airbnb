@@ -137,13 +137,31 @@ function HostListingApplication({ user, onComplete, onCancel }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const update = (field, value) => setForm((current) => ({ ...current, [field]: value }))
-  useEffect(() => { localStorage.setItem(draftKey, JSON.stringify(form)) }, [draftKey, form])
+  useEffect(() => { try { localStorage.setItem(draftKey, JSON.stringify(form)) } catch { try { localStorage.setItem(draftKey, JSON.stringify({ ...form, images: [], image: form.image.startsWith('data:') ? '' : form.image })) } catch { void 0 } } }, [draftKey, form])
   useEffect(() => { const nextPath = `/host/onboarding/${step}`; if (window.location.pathname !== nextPath) window.history.pushState({ view: 'host-onboarding', step }, '', nextPath) }, [step])
+  const compressPhoto = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('Unable to read photo'))
+    reader.onload = () => {
+      const image = new Image()
+      image.onerror = () => reject(new Error('Unable to process photo'))
+      image.onload = () => {
+        const scale = Math.min(1, 1600 / Math.max(image.naturalWidth, image.naturalHeight))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
+        canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', 0.78))
+      }
+      image.src = reader.result
+    }
+    reader.readAsDataURL(file)
+  })
   const chooseImages = (event) => {
     const files = [...(event.target.files || [])]
-    const valid = files.filter((file) => file.type.startsWith('image/') && file.size <= 5 * 1024 * 1024)
-    if (valid.length !== files.length) return setError('Each photo must be an image smaller than 5 MB.')
-    Promise.all(valid.map((file) => new Promise((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.readAsDataURL(file) }))).then((images) => { setError(''); setForm((current) => ({ ...current, images: [...current.images, ...images], image: current.image || images[0] })) })
+    const valid = files.filter((file) => file.type.startsWith('image/') && file.size <= 10 * 1024 * 1024).slice(0, 6)
+    if (valid.length !== files.length) return setError('Each photo must be an image smaller than 10 MB.')
+    Promise.all(valid.map(compressPhoto)).then((images) => { setError(''); setForm((current) => ({ ...current, images: [...current.images, ...images].slice(0, 6), image: current.image || images[0] })) }).catch(() => setError('Unable to process one of those photos.'))
   }
   const removePhoto = (index) => setForm((current) => { const images = current.images.filter((_, imageIndex) => imageIndex !== index); return { ...current, images, image: images[0] || (current.image.startsWith('data:') ? '' : current.image) } })
   const validate = () => {

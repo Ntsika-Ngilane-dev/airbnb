@@ -122,7 +122,7 @@ function nightsBetween(checkIn, checkOut) { const start = new Date(checkIn); con
 export { app, connectDatabase }
 
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: '12mb' }))
 
 async function signSession(payload) {
   return new SignJWT(payload).setProtectedHeader({ alg: 'HS256', typ: 'JWT' }).setIssuedAt().setExpirationTime('24h').sign(jwtSecret)
