@@ -370,6 +370,18 @@ function App() {
     occupancyTaxes: Number(selectedStay.occupancyTaxes ?? defaultReservation.occupancyTaxes),
   } : defaultReservation
 
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const showReviews = (event) => {
+      if (!event.target.closest('.review-header .share-button') || !detailStay?.reviews?.length) return
+      event.preventDefault()
+      const reviews = detailStay.reviews.map((review) => `${review.author} · ★ ${review.rating}\n${review.text}`).join('\n\n')
+      window.alert(`Reviews for ${detailStay.title}\n\n${reviews}`)
+    }
+    document.addEventListener('click', showReviews)
+    return () => document.removeEventListener('click', showReviews)
+  }, [detailStay])
+
   const runSearch = () => { const params = new URLSearchParams(); if (location) params.set('location', location); if (activeCategory && activeCategory !== 'Any category') params.set('category', activeCategory); fetch(`/api/stays?${params}`).then((response) => response.json()).then(setStays); setView('search') }
   const openStay = (stay) => { setSelectedStay(stay); setView('detail'); window.scrollTo({ top: 0, behavior: 'smooth' }) }
   const toggleFavorite = (stay) => setFavorites((current) => current.includes(stay.title) ? current.filter((title) => title !== stay.title) : [...current, stay.title])
