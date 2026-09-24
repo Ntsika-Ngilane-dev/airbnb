@@ -354,6 +354,11 @@ function App() {
     amenities: Array.isArray(selectedStay.amenities) && selectedStay.amenities.length ? selectedStay.amenities : defaultReservation.amenities,
     rating: Number(selectedStay.rating || defaultReservation.rating),
     reviewCount: Number(selectedStay.reviewCount || defaultReservation.reviews),
+    reviews: Array.isArray(selectedStay.reviews) && selectedStay.reviews.length ? selectedStay.reviews : [
+      { author: 'Olivia R.', rating: 4.8, text: 'Beautiful space and an easy check-in. We felt at home right away.' },
+      { author: 'James T.', rating: 4.6, text: 'The location was perfect and the home was even better than the photos.' },
+      { author: 'Mia K.', rating: 4.9, text: 'Everything was clean, comfortable, and thoughtfully prepared for our stay.' },
+    ],
     pricePerNight: Number(selectedStay.pricePerNight ?? selectedStay.price ?? defaultReservation.price),
     title: selectedStay.title || defaultReservation.title,
     host: selectedStay.hostName || selectedStay.host || defaultReservation.host,

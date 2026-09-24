@@ -72,6 +72,10 @@ const stayCategories = ['Amazing views', 'Icons', 'Amazing pools', 'Beach', 'Cou
 
 function createStays() {
   const catalog = []
+  const hostNames = ['Amara', 'Theo', 'Maya', 'Nia', 'Luca', 'Sofia', 'Ethan', 'Leila', 'Noah', 'Zuri', 'Milo', 'Anika']
+  const hostSurnames = ['Chen', 'Okafor', 'Meyer', 'Patel', 'Rossi', 'Williams', 'Silva', 'Khan', 'Bennett', 'Dlamini', 'Sato', 'Martin']
+  const reviewerNames = ['Olivia', 'James', 'Ava', 'Mateo', 'Sophie', 'Daniel', 'Mia', 'Lucas', 'Grace', 'Eli', 'Isla', 'Henry']
+  const reviewComments = ['Beautiful space and an easy check-in. We felt at home right away.', 'The location was perfect and the home was even better than the photos.', 'Everything was clean, comfortable, and thoughtfully prepared for our stay.', 'A memorable visit with a wonderful host. I would happily book this place again.', 'The neighborhood was lovely and the stay had everything we needed.', 'Such a peaceful and well-designed home. It made our trip feel effortless.']
   const imagePool = [
     'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=900&q=85',
     'https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=900&q=85',
@@ -98,16 +102,26 @@ function createStays() {
       const city = `${country.split(' ')[0].replace(/[^a-zA-Z]/g, '') || 'City'} ${countryIndex + 1}`
       const location = `${city}, ${country}`
       const image = imagePool[(countryIndex + categoryIndex) % imagePool.length]
+      const listingIndex = countryIndex * stayCategories.length + categoryIndex
+      const hostName = `${hostNames[listingIndex % hostNames.length]} ${hostSurnames[Math.floor(listingIndex / hostNames.length) % hostSurnames.length]} · ${city} ${categoryIndex + 1}`
+      const reviews = [0, 1, 2].map((reviewIndex) => ({
+        author: `${reviewerNames[(listingIndex + reviewIndex * 3) % reviewerNames.length]} ${String.fromCharCode(65 + ((listingIndex + reviewIndex) % 26))}.`,
+        rating: Number((4 + ((listingIndex + reviewIndex * 11) % 10) / 10).toFixed(1)),
+        text: reviewComments[(listingIndex + reviewIndex * 2) % reviewComments.length],
+      }))
 
       catalog.push({
         title: `${category} home in ${city}`,
         location,
         country,
+        hostName,
+        hostEmail: `host-${listingIndex + 1}@airbnb.local`,
         pricePerNight: 90 + ((countryIndex * 47) + categoryIndex * 29) % 460,
         image,
         category,
-        rating: Number((4.55 + ((countryIndex * 0.11 + categoryIndex * 0.07) % 0.44)).toFixed(2)),
-        reviewCount: 40 + ((countryIndex * 53 + categoryIndex * 17) % 980),
+        rating: Number((4.1 + ((listingIndex * 37) % 90) / 100).toFixed(2)),
+        reviewCount: 25 + ((listingIndex * 97) % 1200),
+        reviews,
         guestFavorite: (countryIndex + categoryIndex) % 3 === 0,
         copyright: '© 2024 Airbnb, Inc.',
       })
